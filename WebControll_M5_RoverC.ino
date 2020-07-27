@@ -280,6 +280,7 @@ String form ="<!DOCTYPE html>\r\n"
 "</html>\r\n";
 
 unsigned long pre_time;
+String ctrl_str="None";
 
 /* Just a little test message.  Go to http://192.168.4.1 in a web browser
  * connected to this access point to see it.
@@ -288,9 +289,10 @@ void setup() {
 
   M5.begin();
   M5.update();
+  
   Wire.begin(0, 26, 10000);
-	
 	delay(1000);
+  
 	Serial.begin(115200);
 	Serial.println();
 	Serial.print("Configuring access point...");
@@ -328,15 +330,30 @@ void setup() {
 
 void loop() 
 {
-  if((unsigned long)(millis() - pre_time) > 1000){
+  if((unsigned long)(millis() - pre_time) > 300){
     rover_c.run();
     //Serial.println(rover_c.x_val);
     //Serial.println(rover_c.y_val);
     //Serial.println(rover_c.yaw_val);
+    drawScreen();
     pre_time = millis();
   }
 
+  
+
   //M5.update();
+}
+
+void drawScreen() {
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setTextColor(WHITE);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setCursor(1, 1);
+    M5.Lcd.printf("BatV:%5.1fV ", M5.Axp.GetBatVoltage());
+    M5.Lcd.setCursor(1, 11);
+    M5.Lcd.printf("BatC:%5.1fmA ", M5.Axp.GetBatCurrent());
+    M5.Lcd.setCursor(1, 21);
+    M5.Lcd.printf("%s",ctrl_str);
 }
 
 void handleRoot(AsyncWebServerRequest *request) {
@@ -355,28 +372,24 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
   } 
 }
 
+
+
 void handle_control(AsyncWebServerRequest *request)
 {
   String s = request->arg("dir");
-  //str = s;
+  ctrl_str = s;
   if (s == "forward") {
       rover_c.move(0,50,0);
-      Serial.println("forward");
   } else if (s == "left") {
       rover_c.turn(-50,0);
-      Serial.println("left");
   } else if (s == "right") {
       rover_c.turn(50,0);
-      Serial.println("right");
   } else if (s == "back") {
       rover_c.move(0,-50,0);
-      Serial.println("back");
   } else if (s == "stop") {
       rover_c.stop();
-      Serial.println("stop");
   } else {
       rover_c.stop();
-      Serial.println("stop");
   }
   request->send(200, "text/html", "");
 }
