@@ -1,47 +1,19 @@
-/*
- * Copyright (c) 2015, Majenko Technologies
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- * * Redistributions of source code must retain the above copyright notice, this
- *   list of conditions and the following disclaimer.
- * 
- * * Redistributions in binary form must reproduce the above copyright notice, this
- *   list of conditions and the following disclaimer in the documentation and/or
- *   other materials provided with the distribution.
- * 
- * * Neither the name of Majenko Technologies nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
-/* Create a WiFi access point and provide a web server on it. */
-
 #include <M5StickC.h>
 
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
+#include "RoverC.h"
+
 /* Set these to your desired credentials. */
 const char *ssid = "RoverC";
 const char *password = "";
 
 AsyncWebServer server(80);
-AsyncWebServer server_8080(8080);
+AsyncWebSocket ws("/ws");
+
+RoverC rover_c(Wire);
 
 /* set I2C library*/
 #include <Wire.h>
@@ -61,83 +33,286 @@ AsyncWebServer server_8080(8080);
 char state = command_stop;
 int offset = 0;
 
-String form ="<html>"
-"<head>"
-"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1\">"
-"<style>"
-"* { padding: 0; margin: 0; }"
-"body { background-color: #0097C1; }"
-"</style>"
-"</head>"
-"<body>"
-"<div style=\"position:fixed;top: 50pt; text-align:center; width: 100%; color:white; font-size:300%; font-weight:bold; text-transform:uppercase; font-family:sans-serif\" id=\"value\">connected</div>"
-"<form action=\"\" target=\"tif\" id=\"form\">"
-"<iframe src=\"javascript: false;\" style=\"display: none;\" name=\"tif\" id=\"tif\"></iframe>"
-"</form>"
-"<script>"
-"var offset = 50;"
-"document.body.style.height = document.body.clientHeight + offset + \'px\';"
-"document.body.style.width = document.body.clientWidth + offset + \'px\';"
-"document.getElementsByTagName(\"html\")[0].style.height = document.body.style.height + \'px\';"
-"document.getElementsByTagName(\"html\")[0].style.width = document.body.style.width + \'px\';"
-"var moveHomePosition = function() {"
-    "document.body.scrollTop = offset / 2;"
-    "document.body.scrollLeft = offset / 2;"
-"};"
-"setTimeout(moveHomePosition, 500);"
-"var startX = 0;var startY = 0;var command =\'/stop\';"
-"var threshold = 40;"
-"var esp_port = \'http://192.168.4.1:8080\';"
-"var el_form = document.getElementById(\'form\');"
-"document.body.ontouchstart = function(event) {"
-    "startX = event.touches[0].clientX;"
-    "startY = event.touches[0].clientY;"
-"};"
-"document.body.ontouchmove = function(event) {"
-    "var x = parseInt(event.touches[0].clientX - startX);"
-    "var y = parseInt(event.touches[0].clientY - startY);"
-    "var url = null;"
-    "if (x < (threshold * -1)) {"
-       "if (y < (threshold * -1)){"
-          "url = \'/left<br>forward\';"
-       "} else if (y > threshold) {"
-          "url = \'/left<br>back\';"
-       "}else {"
-        "url = \'/left\';"
-       "}"
-    "} else if (x > threshold) {"
-       "if (y < (threshold * -1)) {"
-          "url = \'/right<br>forward\';"
-      "} else if (y > threshold) {"
-          "url = \'/right<br>back\';"
-      "}else{"
-          "url = \'/right\';"
-      "}"
-     "} else {"
-        "if (y < (threshold * -1)) {"
-            "url = \'/forward\';"
-        " } else if (y > threshold) {"
-            "url = \'/back\';"
-        "}"
-     "}"
-    "if (command != url) {"
-      "if (url) {"
-          "el_form.action = esp_port + url.replace(\"<br>\",\"\");"
-          "el_form.submit();"
-          "document.getElementById(\'value\').innerHTML = url.replace(\"/\",\"\");"
-      "}"
-    "}"
-    "command = url;"
-"};"
-"document.body.ontouchend = function(event) {"
-    "el_form.action = esp_port + \'/stop\';"
-    "el_form.submit();"
-    "setTimeout(moveHomePosition, 50);"
-   "document.getElementById(\'value\').innerHTML = \'stop\';"
-"};"
-"</script>"
-"</body>"
-"</html>";
+String form ="<!DOCTYPE html>\r\n"
+"<html lang='ja' xml:lang='ja'>\r\n"
+"<head>\r\n"
+"  <meta charset='utf-8'>\r\n"
+"  <meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=1'>\r\n"
+"  <title>SimpleWifiControl</title>\r\n"
+"\r\n"
+"  <style type='text/css'>\r\n"
+"\r\n"
+"    .parent {\r\n"
+"      display: -webkit-box;\r\n"
+"      display: -ms-flexbox;\r\n"
+"      display: flex;\r\n"
+"      -ms-flex-wrap: wrap;\r\n"
+"      flex-wrap: wrap;\r\n"
+"      -ms-flex-pack: distribute;\r\n"
+"      justify-content: space-around;\r\n"
+"      -webkit-box-align: center;\r\n"
+"      -ms-flex-align: center;\r\n"
+"      align-items: center;\r\n"
+"    }\r\n"
+"\r\n"
+"    .child {\r\n"
+"      color: #fff;\r\n"
+"      text-align: center;\r\n"
+"      background-color: #fff;\r\n"
+"      margin: 10px;\r\n"
+"    }\r\n"
+"\r\n"
+"    .powerpnl {\r\n"
+"      line-height: 1px;\r\n"
+"      width: 100px;\r\n"
+"      height: 100px;\r\n"
+"    }\r\n"
+"\r\n"
+"    .operationpnl {\r\n"
+"      line-height: 30px;\r\n"
+"      height: 120px;\r\n"
+"    }\r\n"
+"\r\n"
+"    .timerpnl {\r\n"
+"      line-height: 15px;\r\n"
+"      height: 90px;\r\n"
+"    }\r\n"
+"\r\n"
+"    .child04 {\r\n"
+"      line-height: 70px;\r\n"
+"      height: 70px;\r\n"
+"    }\r\n"
+"\r\n"
+"    .controlpnl {\r\n"
+"      line-height: 50px;\r\n"
+"      width: 300px;\r\n"
+"      height: 200px;\r\n"
+"    }\r\n"
+"\r\n"
+"    .configpnl {\r\n"
+"      line-height: 50px;\r\n"
+"      width: 100px;\r\n"
+"      height: 100px;\r\n"
+"    }\r\n"
+"\r\n"
+"    input.checkboxyz{\r\n"
+"      opacity: 0;\r\n"
+"    }\r\n"
+"\r\n"
+"    .power-icon{\r\n"
+"        width: 200px;\r\n"
+"        height: 200px;\r\n"
+"        fill: white;\r\n"
+"        stroke: black;\r\n"
+"    }\r\n"
+"\r\n"
+"    #poweron:checked + label .power-icon{\r\n"
+"        fill: white;\r\n"
+"        stroke: red;\r\n"
+"    }\r\n"
+"\r\n"
+"    .button {\r\n"
+"      display       : inline-block;\r\n"
+"      border-radius : 5%;\r\n"
+"      font-size     : 10pt;\r\n"
+"      text-align    : center;\r\n"
+"      cursor        : pointer;\r\n"
+"      padding       : 12px 12px;\r\n"
+"      background    : #000066;\r\n"
+"      color         : #ffffff;\r\n"
+"      line-height   : 1em;\r\n"
+"      transition    : .3s;\r\n"
+"      box-shadow    : none;\r\n"
+"      border        : 2px solid #000066;\r\n"
+"      margin        : 5px;\r\n"
+"      width         : 70px;\r\n"
+"      height        : 50px;\r\n"
+"    }\r\n"
+"    .button:hover {\r\n"
+"      box-shadow    : none;\r\n"
+"      color         : #3c3cfa;\r\n"
+"      background    : #ffffff;\r\n"
+"    }\r\n"
+"\r\n"
+"    div.controlpnl {font-size:16pt;color:red;text-align:center;width:300px;}\r\n"
+"    /*div.disp_count {font-size:16pt;color:red;margin: 0px}*/\r\n"
+"\r\n"
+"    .indicator {\r\n"
+"      width : 14px;\r\n"
+"      height : 14px;\r\n"
+"      background : red;\r\n"
+"      border        : 1px solid #fff;\r\n"
+"      border-radius: 7px 7px 7px 7px; \r\n"
+"      float : left;\r\n"
+"      margin : 2px;\r\n"
+"    }\r\n"
+"\r\n"
+"    .led-icon{\r\n"
+"        width: 14px;\r\n"
+"        height: 14px;\r\n"
+"        fill: #770000;\r\n"
+"        stroke: black;\r\n"
+"    }\r\n"
+"\r\n"
+"  </style>\r\n"
+"\r\n"
+"  <script type = 'text/javascript'>\r\n"
+"    var count_value = 0;\r\n"
+"    var ws = new WebSocket('ws://192.168.4.1/ws');\r\n"
+"\r\n"
+"    function show_led_icon()\r\n"
+"    {\r\n"
+"      for(var i=0;i<4;i++){\r\n"
+"        var target_led = document.getElementById('timerled' + i);\r\n"
+"        if(i < count_value){\r\n"
+"          target_led.style.fill = '#FF0000';\r\n"
+"        }\r\n"
+"        else\r\n"
+"        {\r\n"
+"          target_led.style.fill = '#770000';\r\n"
+"        }\r\n"
+"      }\r\n"
+"    }\r\n"
+"\r\n"
+"    ws.onopen = function() {\r\n"
+"      window.alert('Connected');\r\n"
+"    };\r\n"
+"\r\n"
+"    ws.onmessage = function(evt) {\r\n"
+"      var remain_sec = Number(evt.data);\r\n"
+"      if(remain_sec == -1)\r\n"
+"      {\r\n"
+"        document.getElementById('display').innerHTML  = 'Connected';\r\n"
+"      }else{           \r\n"
+"        document.getElementById('display').innerHTML  = 'remain: ' + evt.data + '[sec]';\r\n"
+"\r\n"
+"        if(remain_sec == 0){\r\n"
+"          count_value = 0;\r\n"
+"        } else {\r\n"
+"          count_value = parseInt(remain_sec/60 + 1);\r\n"
+"        }\r\n"
+"\r\n"
+"        show_led_icon();\r\n"
+"\r\n"
+"      }\r\n"
+"    };\r\n"
+"\r\n"
+"    window.onload = function() {\r\n"
+" \r\n"
+"      var count_up_btn = document.getElementById('btn_count_up');\r\n"
+"      \r\n"
+"      var count_down_btn = document.getElementById('btn_count_down');\r\n"
+"      count_down_btn.onclick = function (){\r\n"
+"        if(count_value > 0){\r\n"
+"          count_value -= 1;\r\n"
+"\r\n"
+"          show_led_icon();\r\n"
+"        }\r\n"
+"      };\r\n"
+"\r\n"
+"      count_up_btn.onclick = function (){\r\n"
+"          if(count_value < 4){\r\n"
+"            count_value += 1;\r\n"
+"            \r\n"
+"            show_led_icon();\r\n"
+"            \r\n"
+"            var nowcnt = document.getElementById('timer_count');\r\n"
+"            nowcnt.value = count_value;\r\n"
+"          }\r\n"
+"      };\r\n"
+"\r\n"
+"      count_up_btn.onmousedown = function() {\r\n"
+"      }\r\n"
+"\r\n"
+"      count_up_btn.onmouseup = function() {\r\n"
+"      }\r\n"
+"\r\n"
+"    }\r\n"
+"  </script>\r\n"
+"</head>\r\n"
+"<body>      \r\n"
+"  <p id = 'display'>Not connected</p>\r\n"
+"          \r\n"
+"  <div class='parent'>\r\n"
+"    <div class='child powerpnl'>\r\n"
+"      <form method='post' id='power_form' action='./power' target='tif0' >\r\n"
+"        <iframe src='javascript: false;' style='display: none;' name='tif0' id='tif0'></iframe>\r\n"
+"        <input type='checkbox' name='poweron' class='checkboxyz' id='poweron' onchange='document.forms.power_form.submit();'>\r\n"
+"        <label for='poweron'>\r\n"
+"          <svg class='power-icon' version='1.1' id='_x32_' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'\r\n"
+"            viewBox='-12.5 0 100 100' style='' xml:space='preserve' preserveAspectRatio='none'>\r\n"
+"            <g>\r\n"
+"              <path\r\n"
+"                class='st0'\r\n"
+"                d='M 21.648156,5.4768425 A 11.90625,11.90625 0 0 1 24.229107,18.452157 11.90625,11.90625 0 0 1 13.229166,25.802083 11.90625,11.90625 0 0 1 2.2292255,18.452158 11.90625,11.90625 0 0 1 4.8101758,5.476843'\r\n"
+"                style='stroke-width:3;stroke-linecap:round;' />\r\n"
+"             <path\r\n"
+"                class='st0'\r\n"
+"                d='m 13.229167,3.3125 c 0,9.260417 0,9.260417 0,9.260417'\r\n"
+"                style='stroke-width:3;stroke-linecap:round;' />\r\n"
+"            </g>\r\n"
+"          </svg>\r\n"
+"        </label>\r\n"
+"      </form>\r\n"
+"    </div>\r\n"
+"\r\n"
+"    <div class='child operationpnl'>\r\n"
+"      <form method='post' id='operation_form' action='./operation' target='tif1' >\r\n"
+"        <iframe src='javascript: false;' style='display: none;' name='tif1' id='tif1'></iframe>\r\n"
+"        <div>\r\n"
+"          <input type='submit' name='operation' value='start' class='button' ><br/>\r\n"
+"          <input type='submit' name='operation' value='stop' class='button' >\r\n"
+"        </div>\r\n"
+"      </form>\r\n"
+"    </div>\r\n"
+"\r\n"
+"    <div class='child timerpnl'>\r\n"
+"      <form method='post' id='timersetting_form' action='./timersetting' target='tif2' >\r\n"
+"        <iframe src='javascript: false;' style='display: none;' name='tif2' id='tif2'></iframe>\r\n"
+"        <div>\r\n"
+"          <!--div id='disp_count'>0</div-->\r\n"
+"          <svg version='1.1' id='timerindicator' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' \r\n"
+"          x='0' y='0' width='70' height='16' viewBox='0 0 70 16' style='' xml:space='preserve' preserveAspectRatio='none' >\r\n"
+"            <g>\r\n"
+"              <ellipse id='timerled0' class='led-icon' ry='7' rx='7' cy='8' cx='8' style='fill-opacity:1;stroke:#000000;stroke-width:1;' />\r\n"
+"              <ellipse id='timerled1' class='led-icon' ry='7' rx='7' cy='8' cx='26' style='fill-opacity:1;stroke:#000000;stroke-width:1;' />\r\n"
+"              <ellipse id='timerled2' class='led-icon' ry='7' rx='7' cy='8' cx='44' style='fill-opacity:1;stroke:#000000;stroke-width:1;' />\r\n"
+"              <ellipse id='timerled3' class='led-icon' ry='7' rx='7' cy='8' cx='62' style='fill-opacity:1;stroke:#000000;stroke-width:1;' />\r\n"
+"            </g>\r\n"
+"          </svg><br>\r\n"
+"          <input type='hidden' name='timer_count' id='timer_count' >\r\n"
+"          <input type='submit' name='timer' value='timerset' class='button' id='btn_count_up' />\r\n"
+"        </div>\r\n"
+"      </form>\r\n"
+"    </div>\r\n"
+"\r\n"
+"    <div class='child child04'>\r\n"
+"        <input type='submit' name='timer' value='set' class='button' id='btn_count_down' />\r\n"
+"    </div>\r\n"
+"\r\n"
+"    <div class='child controlpnl'>\r\n"
+"      <form method='post' id='control_form' action='./control' target='tif3' >\r\n"
+"        <iframe src='javascript: false;' style='display: none;' name='tif3' id='tif3'></iframe>\r\n"
+"        <div class='controlpnl' >\r\n"
+"          <input type='submit' name='dir' value='forward' class='button' ><br/>\r\n"
+"          <input type='submit' name='dir' value='left' class='button' >\r\n"
+"          <input type='submit' name='dir' value='stop' class='button' >\r\n"
+"          <input type='submit' name='dir' value='right' class='button' ><br/>\r\n"
+"          <input type='submit' name='dir' value='back' class='button' >\r\n"
+"        </div>\r\n"
+"      </form>\r\n"
+"    </div>\r\n"
+"\r\n"
+"    <div class='child configpnl'>\r\n"
+"      <form method='post' id='config_form' action='./get_config' >\r\n"
+"        <input type='submit' name='config_open' value='open' class='button' />\r\n"
+"      </from>\r\n"
+"    </div>\r\n"
+"    %YOU_HAVE_CONTROL%\r\n"
+"  </div>\r\n"
+"    \r\n"
+"</body>\r\n"
+"</html>\r\n";
 
 /* Just a little test message.  Go to http://192.168.4.1 in a web browser
  * connected to this access point to see it.
@@ -154,30 +329,27 @@ void setup() {
 	Serial.print("Configuring access point...");
 
   //Wire.begin(4, 14);
-  delay(40);
+  //delay(40);
+
+  // Init M5Bala
+  rover_c.begin();
   
 	/* You can remove the password parameter if you want the AP to be open. */
 	WiFi.softAP(ssid, password);
-
+  delay(100);
 	IPAddress myIP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
 	Serial.println(myIP);
- 
+
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
+
 	server.on("/",HTTP_GET, handleRoot);
-  server_8080.on("/stop", HTTP_GET,handle_stop);
-  server_8080.on("/forward", HTTP_GET,handle_forward);
-  server_8080.on("/back",HTTP_GET, handle_back);
-  server_8080.on("/left",HTTP_GET, handle_left);
-  server_8080.on("/right", HTTP_GET,handle_right);
-  server_8080.on("/leftforward",HTTP_GET, handle_f_left);
-  server_8080.on("/rightforward",HTTP_GET, handle_f_right);
-  server_8080.on("/leftback",HTTP_GET, handle_b_left);
-  server_8080.on("/rightback",HTTP_GET, handle_b_right);
+  server.on("/control", HTTP_POST,handle_control);
  
 	server.begin();
-  server_8080.begin();
   
-	Serial.println("HTTP server started");
+	Serial.println("Server started");
   //pinMode(16,OUTPUT);
   //pinMode(12,OUTPUT);
 
@@ -186,146 +358,53 @@ void setup() {
   delay(100);
 }
 
-void loop() {
-	//server.handleClient();
- // server_8080.handleClient();
-}
-
-
-uint8_t SendBuff[9] = {0xAA, 0x55,
-                       0x00,
-                       0x00,
-                       0x00,
-                       0x00,
-                       0x00,
-                       0x00,
-                       0xee};
-
-uint8_t I2CWrite1Byte(uint8_t Addr, uint8_t Data)
+void loop() 
 {
-    Wire.beginTransmission(0x38);
-    Wire.write(Addr);
-    Wire.write(Data);
-    return Wire.endTransmission();
-}
 
-uint8_t I2CWritebuff(uint8_t Addr, uint8_t *Data, uint16_t Length)
-{
-    Wire.beginTransmission(0x38);
-    Wire.write(Addr);
-    for (int i = 0; i < Length; i++)
-    {
-        Wire.write(Data[i]);
-    }
-    return Wire.endTransmission();
-}
+  rover_c.run();
 
-int16_t speed_buff[4] = {0};
-int8_t speed_sendbuff[4] = {0};
-uint32_t count = 0;
-uint8_t IIC_ReState = I2C_ERROR_NO_BEGIN;
+  //if((unsigned long)(millis() - pre_time) > 1000){
 
-uint8_t Setspeed(int16_t Vtx, int16_t Vty, int16_t Wt)
-{
-    Wt = (Wt > 100) ? 100 : Wt;
-    Wt = (Wt < -100) ? -100 : Wt;
+    //noInterrupts();
+  //  if(b_web_connect){
+  //    ws.text(g_client_id,String(remain_timer_sec));
+  //    led_bar_rainbow_scroll(sc_cnt++);
+  //  }
+    //interrupts();
 
-    Vtx = (Vtx > 100) ? 100 : Vtx;
-    Vtx = (Vtx < -100) ? -100 : Vtx;
-    Vty = (Vty > 100) ? 100 : Vty;
-    Vty = (Vty < -100) ? -100 : Vty;
+  //  pre_time = millis();
+  //}
 
-    Vtx = (Wt != 0) ? Vtx * (100 - abs(Wt)) / 100 : Vtx;
-    Vty = (Wt != 0) ? Vty * (100 - abs(Wt)) / 100 : Vty;
-
-    speed_buff[0] = Vty - Vtx - Wt;
-    speed_buff[1] = Vty + Vtx + Wt;
-    speed_buff[3] = Vty - Vtx + Wt;
-    speed_buff[2] = Vty + Vtx - Wt;
-
-    for (int i = 0; i < 4; i++)
-    {
-        speed_buff[i] = (speed_buff[i] > 100) ? 100 : speed_buff[i];
-        speed_buff[i] = (speed_buff[i] < -100) ? -100 : speed_buff[i];
-        speed_sendbuff[i] = speed_buff[i];
-    }
-    return I2CWritebuff(0x00, (uint8_t *)speed_sendbuff, 4);
+  //M5.update();
 }
 
 void handleRoot(AsyncWebServerRequest *request) {
   request->send(200, "text/html", form);
 }
 
-
-void handle_stop(AsyncWebServerRequest *request) {
-  Serial.print("stop\r\n");
-  //LED_L;
-    stop_motor();
-    state = command_stop;
-  //LED_H;
-  request->send(200, "text/html", "");
-}
-
-void handle_forward(AsyncWebServerRequest *request) {
- Serial.print("forward\r\n");
-  //drive();
-  //servo_control(90);
-  Setspeed(0, 25, 0);
-  request->send(200, "text/html", "");
-}
-
-void handle_back(AsyncWebServerRequest *request) {
-  Serial.print("back\r\n");
-  //back();
-  //servo_control(90);
-  Setspeed(0, -25, 0);
-  request->send(200, "text/html", "");
-}
-
-void handle_left(AsyncWebServerRequest *request){
-  Serial.print("left\r\n");
-  //servo_control(servo_left);
-  Setspeed(25, 0, 0);
-  request->send(200, "text/html", "");
-}
-
-void handle_right(AsyncWebServerRequest *request){
-  Serial.print("right\r\n");
-  //servo_control(servo_right);
-  Setspeed(-25, 0, 0);
-  request->send(200, "text/html", "");
-}
-
-void handle_f_left(AsyncWebServerRequest *request){
-  Serial.print("f_left\r\n");
-  //drive();
-  //servo_control(servo_left);
-  Setspeed(25, 25, 0);
-  request->send(200, "text/html", "");
-}
-
-void handle_f_right(AsyncWebServerRequest *request){
-  Serial.print("f_right\r\n");
-  //drive();
-  //servo_control(servo_right);
-  Setspeed(-25, 25, 0);
-  request->send(200, "text/html", "");
-}
-
-void handle_b_left(AsyncWebServerRequest *request){
-  Serial.print("b_left\r\n");
-  //back();
-  //servo_control(servo_left );
-  Setspeed(25, -25, 0);
-  request->send(200, "text/html", "");
-}
-
-
-void handle_b_right(AsyncWebServerRequest *request){
-  Serial.print("b_right\r\n");
-  //back();
-  //servo_control(servo_right);
-  Setspeed(-25, -25, 0);
+void control(AsyncWebServerRequest *request)
+{
+  String s = request->arg("dir");
+  str = s;
+  if (s == "forward") {
+      rover_c.move(50,0);
+      //Serial.println("forward");
+  } else if (s == "left") {
+      rover_c.turn(-50,0);
+      //Serial.println("left");
+  } else if (s == "right") {
+      rover_c.turn(50,0);
+      //Serial.println("right");
+  } else if (s == "back") {
+      rover_c.move(-50,0);
+      //Serial.println("back");
+  } else if (s == "stop") {
+      rover_c.stop();
+      //Serial.println("stop");
+  } else {
+      rover_c.stop();
+      //Serial.println("stop");
+  }
   request->send(200, "text/html", "");
 }
 
@@ -387,24 +466,3 @@ void stop_motor(){
   Setspeed(0, 0, 0);
   delay(10);
 }
-
-//void motor_func(char add , char duty){
-//  Wire.beginTransmission(add);
-//  Wire.write(0x00);
-//  Wire.write(duty);
-//  Wire.endTransmission();
-//}
-
-//void servo_control(int angle){
-//int microsec,i;
-//      //LED_L;
-//      microsec = (5*(angle+offset))+ 1000;
-//       
-//      for(i=0; i<20 ;i++){
-//        digitalWrite( 16, HIGH );
-//        delayMicroseconds( microsec ); 
-//        digitalWrite( 16, LOW );
-//        delayMicroseconds( 10000 - microsec ); 
-//      }
-//      //LED_H;
-//}
