@@ -17,21 +17,7 @@ RoverC rover_c(Wire);
 
 /* set I2C library*/
 #include <Wire.h>
-#define ADDR1  0x64
 
-#define command_start  0
-#define command_stop   1
-#define command_back  2
-#define forward       0x01
-#define reverse       0x02
-#define servo_left    65
-#define servo_right   110
-
-//#define LED_H       (digitalWrite( 12, HIGH ))
-//#define LED_L       (digitalWrite( 12, LOW ))
-
-char state = command_stop;
-int offset = 0;
 
 String form ="<!DOCTYPE html>\r\n"
 "<html lang='ja' xml:lang='ja'>\r\n"
@@ -265,27 +251,6 @@ String form ="<!DOCTYPE html>\r\n"
 "        </div>\r\n"
 "      </form>\r\n"
 "    </div>\r\n"
-"\r\n"
-"    <div class='child timerpnl'>\r\n"
-"      <form method='post' id='timersetting_form' action='./timersetting' target='tif2' >\r\n"
-"        <iframe src='javascript: false;' style='display: none;' name='tif2' id='tif2'></iframe>\r\n"
-"        <div>\r\n"
-"          <!--div id='disp_count'>0</div-->\r\n"
-"          <svg version='1.1' id='timerindicator' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' \r\n"
-"          x='0' y='0' width='70' height='16' viewBox='0 0 70 16' style='' xml:space='preserve' preserveAspectRatio='none' >\r\n"
-"            <g>\r\n"
-"              <ellipse id='timerled0' class='led-icon' ry='7' rx='7' cy='8' cx='8' style='fill-opacity:1;stroke:#000000;stroke-width:1;' />\r\n"
-"              <ellipse id='timerled1' class='led-icon' ry='7' rx='7' cy='8' cx='26' style='fill-opacity:1;stroke:#000000;stroke-width:1;' />\r\n"
-"              <ellipse id='timerled2' class='led-icon' ry='7' rx='7' cy='8' cx='44' style='fill-opacity:1;stroke:#000000;stroke-width:1;' />\r\n"
-"              <ellipse id='timerled3' class='led-icon' ry='7' rx='7' cy='8' cx='62' style='fill-opacity:1;stroke:#000000;stroke-width:1;' />\r\n"
-"            </g>\r\n"
-"          </svg><br>\r\n"
-"          <input type='hidden' name='timer_count' id='timer_count' >\r\n"
-"          <input type='submit' name='timer' value='timerset' class='button' id='btn_count_up' />\r\n"
-"        </div>\r\n"
-"      </form>\r\n"
-"    </div>\r\n"
-"\r\n"
 "    <div class='child child04'>\r\n"
 "        <input type='submit' name='timer' value='set' class='button' id='btn_count_down' />\r\n"
 "    </div>\r\n"
@@ -313,6 +278,8 @@ String form ="<!DOCTYPE html>\r\n"
 "    \r\n"
 "</body>\r\n"
 "</html>\r\n";
+
+unsigned long pre_time;
 
 /* Just a little test message.  Go to http://192.168.4.1 in a web browser
  * connected to this access point to see it.
@@ -356,24 +323,18 @@ void setup() {
   //LED_H;
   
   delay(100);
+  pre_time = millis();
 }
 
 void loop() 
 {
-
-  rover_c.run();
-
-  //if((unsigned long)(millis() - pre_time) > 1000){
-
-    //noInterrupts();
-  //  if(b_web_connect){
-  //    ws.text(g_client_id,String(remain_timer_sec));
-  //    led_bar_rainbow_scroll(sc_cnt++);
-  //  }
-    //interrupts();
-
-  //  pre_time = millis();
-  //}
+  if((unsigned long)(millis() - pre_time) > 1000){
+    rover_c.run();
+    //Serial.println(rover_c.x_val);
+    //Serial.println(rover_c.y_val);
+    //Serial.println(rover_c.yaw_val);
+    pre_time = millis();
+  }
 
   //M5.update();
 }
@@ -382,87 +343,40 @@ void handleRoot(AsyncWebServerRequest *request) {
   request->send(200, "text/html", form);
 }
 
-void control(AsyncWebServerRequest *request)
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
+
+  if(type == WS_EVT_CONNECT){
+
+    Serial.println("Websocket client connection received");
+
+  } else if(type == WS_EVT_DISCONNECT){
+    Serial.println("Client disconnected");
+
+  } 
+}
+
+void handle_control(AsyncWebServerRequest *request)
 {
   String s = request->arg("dir");
-  str = s;
+  //str = s;
   if (s == "forward") {
-      rover_c.move(50,0);
-      //Serial.println("forward");
+      rover_c.move(0,50,0);
+      Serial.println("forward");
   } else if (s == "left") {
       rover_c.turn(-50,0);
-      //Serial.println("left");
+      Serial.println("left");
   } else if (s == "right") {
       rover_c.turn(50,0);
-      //Serial.println("right");
+      Serial.println("right");
   } else if (s == "back") {
-      rover_c.move(-50,0);
-      //Serial.println("back");
+      rover_c.move(0,-50,0);
+      Serial.println("back");
   } else if (s == "stop") {
       rover_c.stop();
-      //Serial.println("stop");
+      Serial.println("stop");
   } else {
       rover_c.stop();
-      //Serial.println("stop");
+      Serial.println("stop");
   }
   request->send(200, "text/html", "");
-}
-
-void drive(){
-    if(state == command_back){
-     stop_motor();
-
-     delay(10);
-
-     start_motor();
-  
-  }else if(state == command_stop){
-    start_motor();
-  }
-  state = command_start;
-}
-
-void back(){
-    if(state == command_start){
-     stop_motor();
-     delay(10);
-     reverse_motor();
-  }else if(state == command_stop){
-    reverse_motor();
-  }
-  state = command_back;
-}
-
-void start_motor(){
-//  char i, volt;
-//  volt = 0x20;
-//  for(i=0;i<5;i++){ 
-//    volt = volt + ((0x40)*i);
-//    volt = volt | forward;
-//    motor_func(ADDR1 , volt);
-//    delay(10);
-//  }
-  Setspeed(0, 25, 0);
-  delay(10);
-}
-
-void reverse_motor(){
-//    char i, volt;
-//  volt = 0x20;
-//  for(i=0;i<5;i++){ 
-//    volt = volt + ((0x40)*i);
-//    volt = volt | reverse;
-//    motor_func(ADDR1 , volt);
-//    delay(10);
-//  }
-  Setspeed(0, -25, 0);
-  delay(10);
-}
-
-void stop_motor(){
-  //motor_func(ADDR1 , 0x18);
-  //delay(10);
-  //motor_func(ADDR1 , 0x1B);
-  Setspeed(0, 0, 0);
-  delay(10);
 }
