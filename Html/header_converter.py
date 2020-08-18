@@ -3,8 +3,8 @@
 
 if __name__ == "__main__":
 
-  path_r = "script_radio_control.html"
-  path_w = "script_radio_control_test.csv"
+  path_r = "radio_control.html"
+  path_w = "radio_control_test.csv"
 
   with open(path_r, mode='r') as rf:
     with open(path_w, mode='w') as wf:

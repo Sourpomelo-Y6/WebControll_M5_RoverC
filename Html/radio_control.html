@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang='ja' xml:lang='ja'>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=1'>
+  <title>SimpleWifiControl</title>
+
+  <style type='text/css'>
+
+    .parent {
+      display: -webkit-box;
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-wrap: wrap;
+      flex-wrap: wrap;
+      -ms-flex-pack: distribute;
+      justify-content: space-around;
+      -webkit-box-align: center;
+      -ms-flex-align: center;
+      align-items: center;
+    }
+
+    .child {
+      color: #fff;
+      text-align: center;
+      background-color: #fff;
+      margin: 10px;
+    }
+
+    .operationpnl {
+      line-height: 30px;
+      height: 120px;
+    }
+
+    .child04 {
+      line-height: 70px;
+      height: 70px;
+    }
+
+    .controlpnl {
+      line-height: 50px;
+      width: 300px;
+      height: 200px;
+    }
+    input.checkboxyz{
+      opacity: 0;
+    }
+
+    .power-icon{
+        width: 200px;
+        height: 200px;
+        fill: white;
+        stroke: black;
+    }
+
+    #poweron:checked + label .power-icon{
+        fill: white;
+        stroke: red;
+    }
+
+    .button {
+      display       : inline-block;
+      border-radius : 5%;
+      font-size     : 10pt;
+      text-align    : center;
+      cursor        : pointer;
+      padding       : 12px 12px;
+      background    : #000066;
+      color         : #ffffff;
+      line-height   : 1em;
+      transition    : .3s;
+      box-shadow    : none;
+      border        : 2px solid #000066;
+      margin        : 5px;
+      width         : 70px;
+      height        : 50px;
+    }
+    .button:hover {
+      box-shadow    : none;
+      color         : #3c3cfa;
+      background    : #ffffff;
+    }
+
+    div.controlpnl {font-size:16pt;color:red;text-align:center;width:300px;}
+    /*div.disp_count {font-size:16pt;color:red;margin: 0px}*/
+
+    .indicator {
+      width : 14px;
+      height : 14px;
+      background : red;
+      border        : 1px solid #fff;
+      border-radius: 7px 7px 7px 7px; 
+      float : left;
+      margin : 2px;
+    }
+
+    .led-icon{
+        width: 14px;
+        height: 14px;
+        fill: #770000;
+        stroke: black;
+    }
+
+  </style>
+
+  <script type = 'text/javascript'>
+    var count_value = 0;
+    var ws = new WebSocket('ws://192.168.4.1/ws');
+
+    ws.onopen = function() {
+      window.alert('Connected');
+    };
+
+    ws.onmessage = function(evt) {
+      var remain_sec = Number(evt.data);
+      if(remain_sec == -1)
+      {
+        document.getElementById('display').innerHTML  = 'Connected';
+      }
+    };
+  </script>
+</head>
+<body>      
+  <p id = 'display'>Not connected</p>
+
+    <div class='child controlpnl'>
+      <form method='post' id='control_form' action='./control' target='tif3' >
+        <iframe src='javascript: false;' style='display: none;' name='tif3' id='tif3'></iframe>
+        <div class='controlpnl' >
+          <input type='submit' name='dir' value='lforward' class='button' >
+          <input type='submit' name='dir' value='forward' class='button' >
+          <input type='submit' name='dir' value='rforward' class='button' ><br/>
+          <input type='submit' name='dir' value='left' class='button' >
+          <input type='submit' name='dir' value='stop' class='button' >
+          <input type='submit' name='dir' value='right' class='button' ><br/>
+          <input type='submit' name='dir' value='lback' class='button' >
+          <input type='submit' name='dir' value='back' class='button' >
+          <input type='submit' name='dir' value='rback' class='button' ><br/>
+          <input type='submit' name='dir' value='rrotate' class='button' >
+          <input type='submit' name='dir' value='lrotate' class='button' >
+        </div>
+      </form>
+    </div>
+</body>
+</html>
